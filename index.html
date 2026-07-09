@@ -1,0 +1,1305 @@
+﻿  <!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Projetos Master — Controle de demandas</title>
+  <link rel="icon" href="favicon.png" type="image/png" />
+  <link rel="apple-touch-icon" href="favicon.png" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div class="login-screen" id="loginScreen">
+    <div class="login-card">
+      <div class="login-card__brand">
+        <img class="login-card__logo" src="favicon.png" alt="" width="52" height="52" decoding="async" />
+        <div>
+          <h1>Projetos Master</h1>
+          <p class="muted">Controle de demandas e esteira</p>
+        </div>
+      </div>
+      <form class="login-form" id="loginForm" autocomplete="on">
+        <label class="field">
+          <span>E-mail</span>
+          <input type="email" id="loginEmail" name="email" required autocomplete="username" placeholder="seu@email.com" />
+        </label>
+        <label class="field">
+          <span>Senha</span>
+          <input type="password" id="loginPassword" name="password" required autocomplete="current-password" placeholder="••••••••" />
+        </label>
+        <p class="login-form__error" id="loginError" role="alert" hidden></p>
+        <button type="submit" class="btn btn--primary btn--block" id="btnLoginSubmit">Entrar</button>
+      </form>
+    </div>
+  </div>
+
+  <div class="app" id="appRoot" hidden>
+    <header class="topbar">
+      <div class="brand">
+        <img class="brand__logo" src="favicon.png" alt="" width="40" height="40" decoding="async" />
+        <div>
+          <h1>Projetos Master</h1>
+          <p class="brand__sub">
+            Painel de demandas e esteira ·
+            <a class="brand__link" id="appPublicLink" href="https://demproj-fdeac.web.app" target="_blank" rel="noopener noreferrer">demproj-fdeac.web.app</a>
+          </p>
+        </div>
+      </div>
+      <nav class="tabs" role="tablist" aria-label="Seções principais">
+        <div class="tabs__esteira-menu import-menu" id="esteiraTabMenu">
+          <button type="button" class="tabs__btn is-active tabs__btn--menu" id="btnTabEsteira" data-tab="esteira" role="tab" aria-selected="true" aria-expanded="false" aria-haspopup="menu" aria-controls="esteiraTabPanel">
+            Esteira <span class="tabs__esteira-label" id="esteiraTabLabel">· Projetos</span>
+          </button>
+          <div class="import-menu__panel tabs__esteira-panel" id="esteiraTabPanel" role="menu" hidden>
+            <button type="button" class="import-menu__item is-active" data-esteira-linha="operacional" role="menuitem">Esteira Projetos</button>
+            <button type="button" class="import-menu__item" data-esteira-linha="b2b" role="menuitem">Esteira B2B</button>
+          </div>
+        </div>
+        <button type="button" class="tabs__btn" data-tab="diarias" role="tab" aria-selected="false">Demandas diárias</button>
+        <button type="button" class="tabs__btn" data-tab="projetistas" role="tab" aria-selected="false">Projetistas</button>
+        <button type="button" class="tabs__btn" data-tab="dashboard" role="tab" aria-selected="false">Dashboard</button>
+      </nav>
+      <div class="topbar__actions">
+        <span class="user-badge" id="authUserEmail" hidden title="Usuário logado"></span>
+        <button type="button" class="btn btn--ghost" id="btnSignOut" hidden>Sair</button>
+        <span class="sync-badge" id="syncBadge" data-status="connecting" aria-live="polite" title="Status da sincronização">Conectando…</span>
+        <div class="import-menu" id="exportMenu">
+          <button type="button" class="btn btn--ghost import-menu__toggle" id="btnExportToggle" aria-expanded="false" aria-haspopup="menu" aria-controls="exportMenuPanel">
+            Exportar
+          </button>
+          <div class="import-menu__panel" id="exportMenuPanel" role="menu" hidden>
+            <button type="button" class="import-menu__item" id="btnExportJson" role="menuitem">JSON — backup do sistema</button>
+            <button type="button" class="import-menu__item" id="btnExportCsv" role="menuitem">CSV — relatório completo</button>
+          </div>
+        </div>
+        <div class="import-menu" id="importMenu">
+          <button type="button" class="btn btn--ghost import-menu__toggle" id="btnImportToggle" aria-expanded="false" aria-haspopup="menu" aria-controls="importMenuPanel">
+            Importar
+          </button>
+          <div class="import-menu__panel" id="importMenuPanel" role="menu" hidden>
+            <button type="button" class="import-menu__item" id="btnImportJson" role="menuitem">JSON — backup do sistema</button>
+            <button type="button" class="import-menu__item" id="btnImportCsvPick" role="menuitem">CSV — relatório completo</button>
+          </div>
+          <input type="file" id="inputImport" accept="application/json" hidden />
+          <input type="file" id="inputImportCsv" accept=".csv,text/csv" hidden />
+        </div>
+        <button type="button" class="btn btn--primary" id="btnNovaDemanda">Nova demanda</button>
+      </div>
+    </header>
+
+    <main>
+      <section id="panelEsteira" class="panel is-visible" data-panel="esteira">
+        <div class="panel__toolbar">
+          <p class="esteira-status-line muted small" id="esteiraStatusLine" aria-live="polite"></p>
+          <div class="filters">
+            <label class="field field--inline">
+              <span>Projetista</span>
+              <select id="filterProjetista">
+                <option value="">Todos</option>
+              </select>
+            </label>
+            <label class="field field--inline">
+              <span id="filterTipoLabel">Tipo</span>
+              <select id="filterTipo">
+                <option value="">Todos</option>
+              </select>
+            </label>
+            <label class="field field--inline">
+              <span>Regional</span>
+              <select id="filterRegional">
+                <option value="">Todas</option>
+              </select>
+            </label>
+            <label class="field field--inline">
+              <span>Cidade</span>
+              <select id="filterCidade">
+                <option value="">Todas</option>
+              </select>
+            </label>
+            <label class="field field--inline field--busca">
+              <span>Buscar projeto</span>
+              <input type="search" id="filterBusca" placeholder="Nome, cidade, solicitante, chamado…" autocomplete="off" />
+            </label>
+          </div>
+        </div>
+        <div class="esteiras">
+          <div class="esteira-view" id="esteiraViewOperacional">
+            <div class="esteira-block esteira-block--pendente esteira-block--projetos">
+              <h3 class="esteira-title">Novas demandas — sem direcionamento</h3>
+              <p class="muted small esteira-sub">Demandas com projetista <strong>não atribuído</strong>. Abra o card e escolha o responsável; ela passará para a esteira abaixo.</p>
+              <div class="esteira-inbox-layout esteira-inbox-layout--projetos">
+                <div class="board board--pendente board--projetos" id="boardPendente"></div>
+                <aside class="esteira-inbox-alertas esteira-inbox-alertas--projetos" id="esteiraInboxAlertas" aria-live="polite"></aside>
+              </div>
+            </div>
+            <div class="esteira-block esteira-block--projetos">
+              <h3 class="esteira-title">Esteira Projetos</h3>
+              <p class="muted small esteira-sub">Demandas em andamento de todos os projetistas. O nome do responsável aparece em cada card.</p>
+              <div class="board board--projetos" id="boardEsteira"></div>
+            </div>
+          </div>
+          <div class="esteira-view" id="esteiraViewB2b" hidden>
+            <div class="esteira-block esteira-block--pendente esteira-block--b2b">
+              <h3 class="esteira-title">Pré-vendas — sem direcionamento</h3>
+              <p class="muted small esteira-sub">Projetos B2B sem projetista. Atribua um responsável para entrar na esteira B2B.</p>
+              <div class="esteira-inbox-layout esteira-inbox-layout--b2b">
+                <div class="board board--pendente board--b2b" id="boardPendenteB2b"></div>
+                <aside class="esteira-inbox-alertas esteira-inbox-alertas--b2b" id="esteiraInboxAlertasB2b" aria-live="polite"></aside>
+              </div>
+            </div>
+            <div class="esteira-block esteira-block--b2b">
+              <h3 class="esteira-title">Esteira B2B</h3>
+              <p class="muted small esteira-sub">Fluxo comercial: Pré-Vendas → Documentação / As-Builts. Arraste os cards entre as colunas.</p>
+              <div class="board board--b2b" id="boardEsteiraB2b"></div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section id="panelDiarias" class="panel" data-panel="diarias" hidden>
+        <div class="panel__head">
+          <h2>Demandas diárias</h2>
+          <button type="button" class="btn btn--primary" id="btnNovaDiaria">Nova demanda</button>
+        </div>
+        <p class="muted diarias-intro">Registre o nome, a descrição e quem é o responsável por cada demanda.</p>
+        <div class="diarias-toolbar">
+          <label class="field field--inline">
+            <span>Filtrar por responsável</span>
+            <select id="filterDiariaResp">
+              <option value="">Todos</option>
+            </select>
+          </label>
+        </div>
+        <div class="diarias-list" id="listaDiarias"></div>
+      </section>
+
+      <section id="panelProjetistas" class="panel" data-panel="projetistas" hidden>
+        <div class="panel__head">
+          <h2>Atividade no momento</h2>
+          <p class="muted">Registre o foco atual de cada projetista. Em <strong>Vincular a</strong>, escolha uma demanda da <strong>esteira</strong> (todos os projetos ativos; mostra o responsável entre parênteses) ou uma <strong>demanda diária</strong> só daquele projetista.</p>
+        </div>
+        <div class="projetistas-grid" id="projetistasGrid"></div>
+      </section>
+
+      <section id="panelDashboard" class="panel" data-panel="dashboard" hidden>
+        <div class="panel__head">
+          <h2>Dashboard</h2>
+        </div>
+        <div class="dash-indicadores-top">
+          <div class="dash-valor-toolbar">
+            <label class="field field--inline">
+              <span>Base de indicadores (valor, portas, metragem)</span>
+              <select id="filterDashValorModo" aria-label="Modo de valor financeiro">
+                <option value="geral" selected>Valor total geral (Valor final R$ — concluídos + execução + aprovação)</option>
+                <option value="concluido">Valor concluído (Conclusão — Valor final R$)</option>
+                <option value="execucao">Valor em execução (Regional + Terceirizada — Valor final R$)</option>
+                <option value="aprovacao">Valor em aprovação (Aprovação — Valor final R$)</option>
+              </select>
+            </label>
+            <p class="muted small" id="dashValoresFinanceirosHint"></p>
+          </div>
+        </div>
+        <section class="dash-block" data-dash-block="kpi-geral">
+          <button type="button" class="dash-block__toggle" aria-expanded="true" aria-controls="dashBlockKpiGeral">
+            <span>Indicadores gerais</span>
+            <span class="dash-block__chevron" aria-hidden="true"></span>
+          </button>
+          <div class="dash-block__body" id="dashBlockKpiGeral">
+            <p class="muted small dash-block__hint">Projetos da <strong>Esteira Projetos</strong> (B2C, SWAP, Backbone, Licenciamento), sem tipo B2B. Detalhes de <strong>B2C</strong> (MDU/TCR/TCT) e <strong>B2B</strong> (produto) nos blocos abaixo.</p>
+            <div class="kpi-grid" id="dashValoresFinanceirosKpis"></div>
+            <div class="kpi-grid" id="kpiGeral"></div>
+          </div>
+        </section>
+
+        <section class="dash-block" data-dash-block="projetistas">
+          <button type="button" class="dash-block__toggle" aria-expanded="true" aria-controls="dashBlockProjetistas">
+            <span>Resumo por projetista</span>
+            <span class="dash-block__chevron" aria-hidden="true"></span>
+          </button>
+          <div class="dash-block__body" id="dashBlockProjetistas">
+        <p class="muted small dash-block__hint">Valores, portas e metragem por projetista conforme a <strong>base de indicadores</strong> no topo do dashboard.</p>
+        <div class="kpi-grid kpi-grid--split" id="kpiProjetistas"></div>
+          </div>
+        </section>
+
+        <section class="dash-block" data-dash-block="graficos">
+          <button type="button" class="dash-block__toggle" aria-expanded="true" aria-controls="dashBlockGraficos">
+            <span>Gráficos</span>
+            <span class="dash-block__chevron" aria-hidden="true"></span>
+          </button>
+          <div class="dash-block__body" id="dashBlockGraficos">
+        <p class="muted small dash-block__hint">Quantidade por status e tipo inclui <strong>todas as colunas</strong> da Esteira Projetos. Gráficos de <strong>valor</strong> seguem a base de indicadores no topo (concluído, execução, aprovação).</p>
+        <div class="dashboard-charts dashboard-charts--cols2">
+          <div class="chart-card">
+            <h4>Demandas por status</h4>
+            <div class="chart-wrap"><canvas id="chartStatus"></canvas></div>
+          </div>
+          <div class="chart-card">
+            <h4>Demandas por tipo</h4>
+            <div class="chart-wrap"><canvas id="chartTipo"></canvas></div>
+          </div>
+          <div class="chart-card">
+            <h4>Quantidade por tipo de projeto</h4>
+            <p class="muted small chart-card__sub">B2C, Backbone, SWAP e Licenciamento (Esteira Projetos).</p>
+            <div class="chart-wrap chart-wrap--tall"><canvas id="chartTipoQtd"></canvas></div>
+          </div>
+          <div class="chart-card">
+            <h4>Valor por tipo de projeto</h4>
+            <p class="muted small chart-card__sub">Quantidade e valor conforme a base de indicadores no topo.</p>
+            <div class="chart-wrap chart-wrap--tall"><canvas id="chartTipoValor"></canvas></div>
+          </div>
+          <div class="chart-card chart-card--wide">
+            <h4>Demandas por tipo por projetista</h4>
+            <p class="muted small chart-card__sub">Distribuição B2C, SWAP, Backbone e Licenciamento em cada projetista.</p>
+            <div class="chart-wrap chart-wrap--tall"><canvas id="chartProjetistaTipo"></canvas></div>
+            <div class="dashboard-table-wrap" id="dashProjetistaTipoTable"></div>
+          </div>
+          <div class="chart-card chart-card--wide">
+            <h4>Demandas por status por projetista</h4>
+            <p class="muted small chart-card__sub">Quantidade em cada fase da esteira por responsável.</p>
+            <div class="chart-wrap chart-wrap--tall"><canvas id="chartProjetistaStatus"></canvas></div>
+            <div class="dashboard-table-wrap" id="dashProjetistaStatusTable"></div>
+          </div>
+        </div>
+          </div>
+        </section>
+
+        <section class="dash-block" data-dash-block="chegadas-fin">
+          <button type="button" class="dash-block__toggle" aria-expanded="true" aria-controls="dashBlockChegadasFin">
+            <span>Chegadas e finalizações</span>
+            <span class="dash-block__chevron" aria-hidden="true"></span>
+          </button>
+          <div class="dash-block__body" id="dashBlockChegadasFin">
+        <p class="muted small dash-block__hint">Controle por mês e ano: <strong>data de chegada</strong> e <strong>data de conclusão</strong> (status Conclusão).</p>
+        <div class="dash-cf-toolbar">
+          <label class="field field--inline"><span>Ano</span><select id="filterDashCfAno"></select></label>
+          <label class="field field--inline"><span>Mês</span><select id="filterDashCfMes"><option value="">Todos os meses</option></select></label>
+        </div>
+        <div class="kpi-grid" id="dashCfKpis"></div>
+        <div class="dashboard-charts dashboard-charts--cf">
+          <div class="chart-card chart-card--wide">
+            <h4>Chegadas × finalizações por mês</h4>
+            <div class="chart-wrap chart-wrap--tall"><canvas id="chartChegadasFin"></canvas></div>
+          </div>
+        </div>
+        <p class="muted small" id="dashCfResumoCount"></p>
+        <div class="dashboard-table-wrap" id="dashCfResumoTable"></div>
+        <h4 class="dash-cf-subtitle">Projetos no período</h4>
+        <p class="muted small">A lista só carrega após filtrar — busca, mês (acima), projetista, status ou evento.</p>
+        <div class="dash-cf-toolbar dash-cf-toolbar--detalhe">
+          <label class="field field--inline">
+            <span>Buscar projeto</span>
+            <input type="search" id="filterDashCfBusca" placeholder="Nome, cidade ou solicitante…" />
+          </label>
+          <label class="field field--inline">
+            <span>Projetista</span>
+            <select id="filterDashCfResp">
+              <option value="">Selecione…</option>
+            </select>
+          </label>
+          <label class="field field--inline">
+            <span>Status</span>
+            <select id="filterDashCfStatus">
+              <option value="">Selecione…</option>
+            </select>
+          </label>
+          <label class="field field--inline">
+            <span>Evento no período</span>
+            <select id="filterDashCfEvento">
+              <option value="">Selecione…</option>
+              <option value="chegada">Só chegada</option>
+              <option value="conclusao">Só conclusão</option>
+            </select>
+          </label>
+        </div>
+        <p class="muted small" id="dashCfDetalheCount"></p>
+        <div class="dashboard-table-wrap" id="dashCfDetalheTable"></div>
+          </div>
+        </section>
+
+        <section class="dash-block" data-dash-block="entrega-atraso">
+          <button type="button" class="dash-block__toggle" aria-expanded="true" aria-controls="dashBlockEntregaAtraso">
+            <span>Entrega com atraso</span>
+            <span class="dash-block__chevron" aria-hidden="true"></span>
+          </button>
+          <div class="dash-block__body" id="dashBlockEntregaAtraso">
+        <p class="muted small dash-block__hint">Projetos em <strong>Conclusão</strong> cuja <strong>data de término</strong> passou da <strong>finalização prevista</strong>. Ambas as datas devem estar preenchidas.</p>
+        <div class="dash-tempo-toolbar">
+          <label class="field field--inline">
+            <span>Buscar projeto</span>
+            <input type="search" id="filterDashAtrasoBusca" placeholder="Nome, cidade ou solicitante…" />
+          </label>
+          <label class="field field--inline">
+            <span>Projetista</span>
+            <select id="filterDashAtrasoResp">
+              <option value="">Selecione…</option>
+            </select>
+          </label>
+          <label class="field field--inline">
+            <span>Ano (término)</span>
+            <select id="filterDashAtrasoAno">
+              <option value="">Selecione…</option>
+            </select>
+          </label>
+          <label class="field field--inline">
+            <span>Mês (término)</span>
+            <select id="filterDashAtrasoMes">
+              <option value="">Selecione…</option>
+            </select>
+          </label>
+        </div>
+        <div class="kpi-grid" id="dashAtrasoKpis"></div>
+        <p class="muted small" id="dashAtrasoCount"></p>
+        <div class="dashboard-table-wrap" id="dashAtrasoTable"></div>
+          </div>
+        </section>
+
+        <section class="dash-block" data-dash-block="cidades">
+          <button type="button" class="dash-block__toggle" aria-expanded="true" aria-controls="dashBlockCidades">
+            <span>Por regional e cidade</span>
+            <span class="dash-block__chevron" aria-hidden="true"></span>
+          </button>
+          <div class="dash-block__body" id="dashBlockCidades">
+        <p class="muted small dash-block__hint">Projetos agrupados por <strong>regional</strong> e <strong>cidade</strong>. Valor, portas e metragem conforme a <strong>base de indicadores</strong> no topo.</p>
+        <div class="dash-tempo-toolbar">
+          <label class="field field--inline">
+            <span>Regional</span>
+            <select id="filterDashCidadesRegional">
+              <option value="">Todas</option>
+            </select>
+          </label>
+          <label class="field field--inline">
+            <span>Cidade</span>
+            <select id="filterDashCidadesCidade">
+              <option value="">Todas</option>
+            </select>
+          </label>
+        </div>
+        <div class="kpi-grid" id="dashCidadesKpis"></div>
+        <div class="dashboard-charts dashboard-charts--cols2">
+          <div class="chart-card">
+            <h4>Projetos por cidade</h4>
+            <div class="chart-wrap chart-wrap--tall"><canvas id="chartCidadesProjetos"></canvas></div>
+          </div>
+          <div class="chart-card">
+            <h4>Projetos por regional</h4>
+            <div class="chart-wrap chart-wrap--tall"><canvas id="chartRegionalProjetos"></canvas></div>
+          </div>
+          <div class="chart-card chart-card--wide">
+            <h4>Tipo de projeto por cidade</h4>
+            <p class="muted small chart-card__sub">B2C, SWAP, Backbone e Licenciamento — até 12 cidades com mais projetos.</p>
+            <div class="chart-wrap chart-wrap--tall"><canvas id="chartCidadesTipo"></canvas></div>
+          </div>
+          <div class="chart-card chart-card--wide">
+            <h4>Tipo de projeto por regional</h4>
+            <p class="muted small chart-card__sub">B2C, SWAP, Backbone e Licenciamento por regional.</p>
+            <div class="chart-wrap chart-wrap--tall"><canvas id="chartRegionalTipo"></canvas></div>
+          </div>
+          <div class="chart-card">
+            <h4>Investimento por cidade</h4>
+            <p class="muted small chart-card__sub">Soma do valor final (R$) — até 12 cidades.</p>
+            <div class="chart-wrap chart-wrap--tall"><canvas id="chartCidadesInvestimento"></canvas></div>
+          </div>
+          <div class="chart-card">
+            <h4>Investimento por regional</h4>
+            <p class="muted small chart-card__sub">Soma do valor final (R$) por regional.</p>
+            <div class="chart-wrap chart-wrap--tall"><canvas id="chartRegionalInvestimento"></canvas></div>
+          </div>
+        </div>
+        <p class="muted small" id="dashCidadesCount"></p>
+        <div class="dashboard-table-wrap" id="dashCidadesTable"></div>
+          </div>
+        </section>
+
+        <section class="dash-block" data-dash-block="tempo">
+          <button type="button" class="dash-block__toggle" aria-expanded="true" aria-controls="dashBlockTempo">
+            <span>Tempo na esteira por setor</span>
+            <span class="dash-block__chevron" aria-hidden="true"></span>
+          </button>
+          <div class="dash-block__body" id="dashBlockTempo">
+        <p class="muted small dash-block__hint">Cada <strong>coluna da esteira</strong> pertence a um <strong>setor</strong>. <strong>Execução Regional</strong> → Operação; <strong>Execução Terceirizada</strong> → Terceirizada; <strong>IP e Serviços</strong> e <strong>Transmissão e Infra</strong> com setores homônimos. O tempo considera as etapas operacionais (até <strong>Documentação</strong>) — <strong>sem</strong> Conclusão, Pausado ou Reprovado. Em <strong>Projetista</strong>, escolha <strong>Todos os projetistas</strong> para a visão geral.</p>
+        <div class="dash-tempo-intro">
+          <div class="dash-tempo-intro__map">
+            <h4 class="dash-tempo-intro__title">Etapas × setores</h4>
+            <table class="dash-map-setor" aria-label="Etapas da esteira por setor">
+              <thead><tr><th>Etapa (esteira)</th><th>Setor</th></tr></thead>
+              <tbody id="dashTempoSetorMapBody"></tbody>
+            </table>
+          </div>
+          <div class="dash-tempo-intro__resumo">
+            <h4 class="dash-tempo-intro__title">Resumo por setor</h4>
+            <p class="muted small dash-tempo-resumo-hint" id="dashTempoResumoHint">Tempo acumulado de todos os projetos na esteira operacional.</p>
+            <div class="dash-tempo-resumo-body">
+              <div class="dashboard-table-wrap" id="dashTempoSetorResumoTable"></div>
+              <div class="chart-card chart-card--resumo-setor">
+                <p class="muted small chart-card__sub">Barras = dias (soma das etapas do setor).</p>
+                <div class="chart-wrap chart-wrap--resumo-setor"><canvas id="chartTempoSetorResumo" aria-label="Gráfico de tempo por setor"></canvas></div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="dash-tempo-toolbar">
+          <label class="field field--inline">
+            <span>Buscar projeto</span>
+            <input type="search" id="filterDashTempoBusca" placeholder="Nome, cidade ou solicitante…" />
+          </label>
+          <label class="field field--inline">
+            <span>Projetista</span>
+            <select id="filterDashTempoResp">
+              <option value="">Selecione…</option>
+            </select>
+          </label>
+          <label class="field field--inline">
+            <span>Status</span>
+            <select id="filterDashTempoStatus">
+              <option value="">Selecione…</option>
+            </select>
+          </label>
+          <label class="field field--inline">
+            <span>Ano</span>
+            <select id="filterDashTempoAno">
+              <option value="">Selecione…</option>
+            </select>
+          </label>
+          <label class="field field--inline">
+            <span>Mês</span>
+            <select id="filterDashTempoMes">
+              <option value="">Selecione…</option>
+            </select>
+          </label>
+        </div>
+        <p class="muted small" id="dashTempoCount"></p>
+        <div id="dashTempoCharts" class="dash-tempo-charts" hidden>
+          <div class="kpi-grid" id="dashTempoKpis"></div>
+          <div class="dashboard-charts dashboard-charts--tempo">
+            <div class="chart-card chart-card--wide">
+              <h4>Tempo médio por etapa (dias)</h4>
+              <p class="muted small chart-card__sub">Barras coloridas pelo setor responsável.</p>
+              <div class="chart-wrap chart-wrap--tempo-fase"><canvas id="chartTempoFase"></canvas></div>
+            </div>
+            <div class="chart-card">
+              <h4>Distribuição por setor</h4>
+              <p class="muted small chart-card__sub">Soma do tempo de todas as etapas do filtro.</p>
+              <div class="chart-wrap"><canvas id="chartTempoSetor"></canvas></div>
+            </div>
+            <div class="chart-card chart-card--wide">
+              <h4>Tempo por setor — top projetos</h4>
+              <p class="muted small chart-card__sub">Até 10 projetos com maior tempo total no filtro.</p>
+              <div class="chart-wrap chart-wrap--tall"><canvas id="chartTempoSetorStack"></canvas></div>
+            </div>
+          </div>
+        </div>
+          </div>
+        </section>
+
+        <section class="dash-block" data-dash-block="solicitantes">
+          <button type="button" class="dash-block__toggle" aria-expanded="true" aria-controls="dashBlockSolicitantes">
+            <span>Solicitantes</span>
+            <span class="dash-block__chevron" aria-hidden="true"></span>
+          </button>
+          <div class="dash-block__body" id="dashBlockSolicitantes">
+        <p class="muted small dash-block__hint"><strong>Abertas:</strong> projetos em andamento na esteira operacional (exceto Conclusão e Reprovado). <strong>Tipos (abertas):</strong> B2C, SWAP, Backbone, Licenciamento, Diária. <strong>Fechadas:</strong> Conclusão. <strong>Fechadas c/ atraso:</strong> conclusão com data de término após o prazo previsto.</p>
+        <div class="kpi-grid" id="dashSolicitantesKpis"></div>
+        <div class="dashboard-charts dashboard-charts--cf">
+          <div class="chart-card chart-card--wide">
+            <h4>Projetos por solicitante</h4>
+            <p class="muted small chart-card__sub">Até 12 solicitantes com mais projetos no total.</p>
+            <div class="chart-wrap chart-wrap--tall"><canvas id="chartSolicitantes"></canvas></div>
+          </div>
+        </div>
+        <p class="muted small" id="dashSolicitantesCount"></p>
+        <div class="dashboard-table-wrap" id="dashSolicitantesTable"></div>
+          </div>
+        </section>
+
+        <section class="dash-block" data-dash-block="projetado-executado">
+          <button type="button" class="dash-block__toggle" aria-expanded="true" aria-controls="dashBlockProjetadoExecutado">
+            <span>Comparação projetado × executado</span>
+            <span class="dash-block__chevron" aria-hidden="true"></span>
+          </button>
+          <div class="dash-block__body" id="dashBlockProjetadoExecutado">
+            <p class="muted small dash-block__hint">
+              Projetos <strong>concluídos</strong> com levantamento de custo. O <strong>valor projetado</strong> é o valor do projeto + 5% (valor final do levantamento).
+              O <strong>valor realizado</strong> é o informado na conclusão. <strong>Dentro do orçamento</strong> quando o realizado é ≤ ao projetado.
+            </p>
+            <div class="kpi-grid" id="dashProjetadoExecutadoKpis"></div>
+            <div class="dashboard-charts dashboard-charts--pe">
+              <div class="chart-card chart-card--pe-aderencia">
+                <h4>Aderência ao orçamento</h4>
+                <p class="muted small chart-card__sub">Projetos com valor realizado informado (filtros abaixo).</p>
+                <div class="chart-wrap chart-wrap--pe-doughnut"><canvas id="chartProjetadoExecutado"></canvas></div>
+              </div>
+            </div>
+            <div class="dash-tempo-toolbar dash-pe-toolbar">
+              <label class="field field--inline">
+                <span>Projetista</span>
+                <select id="filterDashPeResp" aria-label="Filtrar por projetista"></select>
+              </label>
+              <label class="field field--inline">
+                <span>Situação</span>
+                <select id="filterDashPeSituacao" aria-label="Filtrar por situação">
+                  <option value="">Todas</option>
+                  <option value="dentro">Dentro do orçamento</option>
+                  <option value="acima">Acima do projetado</option>
+                </select>
+              </label>
+            </div>
+            <p class="muted small" id="dashProjetadoExecutadoCount"></p>
+            <div class="dashboard-table-wrap" id="dashProjetadoExecutadoTable"></div>
+          </div>
+        </section>
+
+        <section class="dash-block" data-dash-block="indicadores-b2c">
+          <button type="button" class="dash-block__toggle" aria-expanded="true" aria-controls="dashBlockIndicadoresB2c">
+            <span>Indicadores B2C</span>
+            <span class="dash-block__chevron" aria-hidden="true"></span>
+          </button>
+          <div class="dash-block__body" id="dashBlockIndicadoresB2c">
+            <p class="muted small dash-block__hint">Projetos tipo <strong>B2C</strong> na Esteira Projetos. Segmento obrigatório: <strong>MDU</strong>, <strong>TCR</strong> ou <strong>TCT</strong>. Valor, portas e metragem conforme a <strong>base de indicadores</strong> no topo.</p>
+            <p class="muted small" id="dashB2cCount" aria-live="polite"></p>
+            <div class="kpi-grid" id="kpiB2c"></div>
+            <div class="dashboard-charts dashboard-charts--cols2">
+              <div class="chart-card">
+                <h4>Segmento B2C (MDU / TCR / TCT)</h4>
+                <div class="chart-wrap"><canvas id="chartB2cSegmento"></canvas></div>
+              </div>
+              <div class="chart-card">
+                <h4>Status (B2C)</h4>
+                <div class="chart-wrap"><canvas id="chartB2cStatus"></canvas></div>
+              </div>
+              <div class="chart-card chart-card--wide">
+                <h4>Segmento B2C por cidade</h4>
+                <p class="muted small chart-card__sub">MDU, TCR e TCT — até 12 cidades com mais projetos B2C.</p>
+                <div class="chart-wrap chart-wrap--tall"><canvas id="chartB2cSegmentoCidade"></canvas></div>
+                <div class="dashboard-table-wrap" id="dashB2cSegmentoCidadeTable"></div>
+              </div>
+              <div class="chart-card chart-card--wide">
+                <h4>Segmento B2C por regional</h4>
+                <p class="muted small chart-card__sub">MDU, TCR e TCT por regional.</p>
+                <div class="chart-wrap chart-wrap--tall"><canvas id="chartB2cSegmentoRegional"></canvas></div>
+                <div class="dashboard-table-wrap" id="dashB2cSegmentoRegionalTable"></div>
+              </div>
+              <div class="chart-card chart-card--wide">
+                <h4>Investimento por segmento por cidade</h4>
+                <p class="muted small chart-card__sub">Conforme a base de indicadores no topo — até 12 cidades com maior valor.</p>
+                <div class="chart-wrap chart-wrap--tall"><canvas id="chartB2cInvestCidade"></canvas></div>
+                <div class="dashboard-table-wrap" id="dashB2cInvestCidadeTable"></div>
+              </div>
+              <div class="chart-card chart-card--wide">
+                <h4>Investimento por segmento por regional</h4>
+                <p class="muted small chart-card__sub">Conforme a base de indicadores no topo — por MDU / TCR / TCT em cada regional.</p>
+                <div class="chart-wrap chart-wrap--tall"><canvas id="chartB2cInvestRegional"></canvas></div>
+                <div class="dashboard-table-wrap" id="dashB2cInvestRegionalTable"></div>
+              </div>
+              <div class="chart-card">
+                <h4>Investimento por segmento</h4>
+                <p class="muted small chart-card__sub">Conforme a base de indicadores no topo (Valor final +5%).</p>
+                <div class="chart-wrap chart-wrap--tall"><canvas id="chartB2cInvestSegmento"></canvas></div>
+              </div>
+              <div class="chart-card">
+                <h4>Portas novas por segmento</h4>
+                <p class="muted small chart-card__sub">Soma de novas portas — conforme a base em Indicadores gerais.</p>
+                <div class="chart-wrap chart-wrap--tall"><canvas id="chartB2cPortasSegmento"></canvas></div>
+              </div>
+              <div class="chart-card">
+                <h4>Metragem de lançamento por segmento</h4>
+                <p class="muted small chart-card__sub">Total de metragem (m) — conforme a base em Indicadores gerais.</p>
+                <div class="chart-wrap chart-wrap--tall"><canvas id="chartB2cLancamentoSegmento"></canvas></div>
+              </div>
+              <div class="chart-card chart-card--wide">
+                <h4>Resumo por segmento</h4>
+                <p class="muted small chart-card__sub">Projetos, investimento, portas e metragem por MDU / TCR / TCT.</p>
+                <div class="dashboard-table-wrap" id="dashB2cMetricSegmentoTable"></div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section class="dash-block" data-dash-block="indicadores-b2b">
+          <button type="button" class="dash-block__toggle" aria-expanded="true" aria-controls="dashBlockIndicadoresB2b">
+            <span>Indicadores B2B</span>
+            <span class="dash-block__chevron" aria-hidden="true"></span>
+          </button>
+          <div class="dash-block__body" id="dashBlockIndicadoresB2b">
+            <p class="muted small dash-block__hint">Projetos tipo <strong>B2B</strong> (Alberto e Rafael). Filtro por <strong>data de chegada</strong> (ano/mês). Valores conforme a <strong>base de indicadores</strong> no topo.</p>
+            <div class="dash-cf-toolbar">
+              <label class="field field--inline">
+                <span>Ano (chegada)</span>
+                <select id="filterDashB2bAno" aria-label="Ano de chegada B2B">
+                  <option value="">Todos os anos</option>
+                </select>
+              </label>
+              <label class="field field--inline">
+                <span>Mês (chegada)</span>
+                <select id="filterDashB2bMes" aria-label="Mês de chegada B2B">
+                  <option value="">Todos os meses</option>
+                </select>
+              </label>
+            </div>
+            <p class="muted small" id="dashB2bCount" aria-live="polite"></p>
+
+            <div class="dash-sub-block" data-dash-sub-block="b2b-resumo">
+              <button type="button" class="dash-sub-block__toggle" aria-expanded="true" aria-controls="dashSubBlockB2bResumo">
+                <span>Resumo (KPIs)</span>
+                <span class="dash-sub-block__chevron" aria-hidden="true"></span>
+              </button>
+              <div class="dash-sub-block__body" id="dashSubBlockB2bResumo">
+                <div class="kpi-grid" id="kpiB2b"></div>
+              </div>
+            </div>
+
+            <div class="dash-sub-block" data-dash-sub-block="b2b-graficos">
+              <button type="button" class="dash-sub-block__toggle" aria-expanded="true" aria-controls="dashSubBlockB2bGraficos">
+                <span>Produto e status</span>
+                <span class="dash-sub-block__chevron" aria-hidden="true"></span>
+              </button>
+              <div class="dash-sub-block__body" id="dashSubBlockB2bGraficos">
+                <div class="dashboard-charts dashboard-charts--cols2">
+                  <div class="chart-card">
+                    <h4>Produto B2B</h4>
+                    <div class="chart-wrap"><canvas id="chartB2bProduto"></canvas></div>
+                  </div>
+                  <div class="chart-card">
+                    <h4>Status B2B</h4>
+                    <div class="chart-wrap"><canvas id="chartB2bStatus"></canvas></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div class="dash-sub-block" data-dash-sub-block="b2b-comercial">
+              <button type="button" class="dash-sub-block__toggle" aria-expanded="true" aria-controls="dashSubBlockB2bComercial">
+                <span>Solicitantes (Comercial)</span>
+                <span class="dash-sub-block__chevron" aria-hidden="true"></span>
+              </button>
+              <div class="dash-sub-block__body" id="dashSubBlockB2bComercial">
+                <p class="muted small dash-block__hint">Projetos solicitados pelo setor <strong>Comercial</strong>. Quantidade, valor e cidades conforme a <strong>base de indicadores</strong> no topo.</p>
+                <div class="dashboard-charts dashboard-charts--cols2">
+                  <div class="chart-card">
+                    <h4>Projetos por solicitante</h4>
+                    <p class="muted small chart-card__sub">Quantidade de demandas por vendedor(a) comercial.</p>
+                    <div class="chart-wrap chart-wrap--tall"><canvas id="chartB2bSolicitanteQtd"></canvas></div>
+                  </div>
+                  <div class="chart-card">
+                    <h4>Valor por solicitante</h4>
+                    <p class="muted small chart-card__sub">Valor final (+5%) do levantamento de custo, conforme a base de indicadores no topo. Projetos sem levantamento aparecem com R$ 0.</p>
+                    <div class="chart-wrap chart-wrap--tall"><canvas id="chartB2bSolicitanteValor"></canvas></div>
+                  </div>
+                  <div class="chart-card chart-card--wide">
+                    <h4>Principais cidades por solicitante</h4>
+                    <p class="muted small chart-card__sub">Até 10 cidades com mais projetos — empilhado por solicitante comercial.</p>
+                    <div class="chart-wrap chart-wrap--tall"><canvas id="chartB2bSolicitanteCidade"></canvas></div>
+                    <div class="dashboard-table-wrap" id="dashB2bSolicitanteCidadeTable"></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div class="dash-sub-block" data-dash-sub-block="b2b-regional">
+              <button type="button" class="dash-sub-block__toggle" aria-expanded="true" aria-controls="dashSubBlockB2bRegional">
+                <span>Por regional e cidade</span>
+                <span class="dash-sub-block__chevron" aria-hidden="true"></span>
+              </button>
+              <div class="dash-sub-block__body" id="dashSubBlockB2bRegional">
+                <div class="dashboard-charts dashboard-charts--cols2">
+                  <div class="chart-card">
+                    <h4>Projetos por cidade</h4>
+                    <p class="muted small chart-card__sub">Quantidade de projetos B2B — até 12 cidades com mais demandas.</p>
+                    <div class="chart-wrap chart-wrap--tall"><canvas id="chartB2bProjetosCidade"></canvas></div>
+                  </div>
+                  <div class="chart-card">
+                    <h4>Projetos por regional</h4>
+                    <p class="muted small chart-card__sub">Quantidade de projetos B2B em cada regional.</p>
+                    <div class="chart-wrap chart-wrap--tall"><canvas id="chartB2bProjetosRegional"></canvas></div>
+                  </div>
+                  <div class="chart-card chart-card--wide">
+                    <h4>Produtos B2B por cidade</h4>
+                    <p class="muted small chart-card__sub">Segmentos comerciais (Evento IP, IP Dedicado, etc.) — até 12 cidades com mais projetos.</p>
+                    <div class="chart-wrap chart-wrap--tall"><canvas id="chartB2bProdutoCidade"></canvas></div>
+                    <div class="dashboard-table-wrap" id="dashB2bProdutoCidadeTable"></div>
+                  </div>
+                  <div class="chart-card chart-card--wide">
+                    <h4>Produtos B2B por regional</h4>
+                    <p class="muted small chart-card__sub">Segmentos comerciais por regional.</p>
+                    <div class="chart-wrap chart-wrap--tall"><canvas id="chartB2bProdutoRegional"></canvas></div>
+                    <div class="dashboard-table-wrap" id="dashB2bProdutoRegionalTable"></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div class="dash-sub-block" data-dash-sub-block="b2b-tempo">
+              <button type="button" class="dash-sub-block__toggle" aria-expanded="true" aria-controls="dashSubBlockB2bTempo">
+                <span>Tempo na esteira por setor</span>
+                <span class="dash-sub-block__chevron" aria-hidden="true"></span>
+              </button>
+              <div class="dash-sub-block__body" id="dashSubBlockB2bTempo">
+                <p class="muted small dash-block__hint">Cada <strong>coluna da esteira B2B</strong> pertence a um <strong>setor</strong> (Comercial, Projetos, Operação, CD, Terceirizada). <strong>Execução Regional</strong> → Operação; <strong>Execução Terceirizada</strong> → Terceirizada. <strong>Aprovação BP</strong> fica de fora do tempo por setor (stand-by — não entra no SLA do Comercial). O tempo considera as demais etapas — <strong>sem</strong> Pausados. Em <strong>Projetista</strong>, escolha <strong>Todos os projetistas</strong> para a visão geral.</p>
+                <div class="dash-tempo-intro">
+              <div class="dash-tempo-intro__map">
+                <h4 class="dash-tempo-intro__title">Etapas × setores</h4>
+                <table class="dash-map-setor" aria-label="Etapas da esteira B2B por setor">
+                  <thead><tr><th>Etapa (esteira)</th><th>Setor</th></tr></thead>
+                  <tbody id="dashTempoB2bSetorMapBody"></tbody>
+                </table>
+              </div>
+              <div class="dash-tempo-intro__resumo">
+                <h4 class="dash-tempo-intro__title">Resumo por setor</h4>
+                <p class="muted small dash-tempo-resumo-hint" id="dashTempoB2bResumoHint">Tempo acumulado de todos os projetos na esteira B2B.</p>
+                <div class="dash-tempo-resumo-body">
+                  <div class="dashboard-table-wrap" id="dashTempoB2bSetorResumoTable"></div>
+                  <div class="chart-card chart-card--resumo-setor">
+                    <p class="muted small chart-card__sub">Barras = dias (soma das etapas do setor).</p>
+                    <div class="chart-wrap chart-wrap--resumo-setor"><canvas id="chartTempoB2bSetorResumo" aria-label="Gráfico de tempo por setor B2B"></canvas></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div class="dash-tempo-toolbar">
+              <label class="field field--inline">
+                <span>Buscar projeto</span>
+                <input type="search" id="filterDashTempoB2bBusca" placeholder="Nome, cidade ou solicitante…" />
+              </label>
+              <label class="field field--inline">
+                <span>Projetista</span>
+                <select id="filterDashTempoB2bResp">
+                  <option value="">Selecione…</option>
+                </select>
+              </label>
+              <label class="field field--inline">
+                <span>Status</span>
+                <select id="filterDashTempoB2bStatus">
+                  <option value="">Selecione…</option>
+                </select>
+              </label>
+              <label class="field field--inline">
+                <span>Ano</span>
+                <select id="filterDashTempoB2bAno">
+                  <option value="">Selecione…</option>
+                </select>
+              </label>
+              <label class="field field--inline">
+                <span>Mês</span>
+                <select id="filterDashTempoB2bMes">
+                  <option value="">Selecione…</option>
+                </select>
+              </label>
+            </div>
+            <p class="muted small" id="dashTempoB2bCount"></p>
+            <div id="dashTempoB2bCharts" class="dash-tempo-charts" hidden>
+              <div class="kpi-grid" id="dashTempoB2bKpis"></div>
+              <div class="dashboard-charts dashboard-charts--tempo">
+                <div class="chart-card chart-card--wide">
+                  <h4>Tempo médio por etapa (dias)</h4>
+                  <p class="muted small chart-card__sub">Barras coloridas pelo setor responsável.</p>
+                  <div class="chart-wrap chart-wrap--tempo-fase"><canvas id="chartTempoB2bFase"></canvas></div>
+                </div>
+                <div class="chart-card">
+                  <h4>Distribuição por setor</h4>
+                  <p class="muted small chart-card__sub">Soma do tempo de todas as etapas do filtro.</p>
+                  <div class="chart-wrap"><canvas id="chartTempoB2bSetor"></canvas></div>
+                </div>
+                <div class="chart-card chart-card--wide">
+                  <h4>Tempo por setor — top projetos</h4>
+                  <p class="muted small chart-card__sub">Até 10 projetos com maior tempo total no filtro.</p>
+                  <div class="chart-wrap chart-wrap--tall"><canvas id="chartTempoB2bSetorStack"></canvas></div>
+                </div>
+              </div>
+            </div>
+              </div>
+            </div>
+          </div>
+        </section>
+      </section>
+    </main>
+  </div>
+
+  <dialog class="modal modal--wide" id="modalDemanda">
+    <div class="modal__inner">
+      <div class="modal__head">
+        <h2 id="modalDemandaTitle">Demanda</h2>
+        <div class="demanda-head-actions">
+          <div class="demanda-foot-menu" id="demandaFootMenu">
+            <button type="button" class="icon-btn demanda-foot-menu__trigger" id="btnDemandaMaisOpcoes" aria-haspopup="menu" aria-expanded="false" aria-controls="demandaFootMenuList" title="Mais opções">
+              <span aria-hidden="true">…</span>
+              <span class="visually-hidden">Mais opções</span>
+            </button>
+            <div class="demanda-foot-menu__list" id="demandaFootMenuList" role="menu" hidden>
+              <button type="button" class="demanda-foot-menu__item" id="btnAbrirHistoricoEdicao" role="menuitem">
+                <span class="demanda-foot-menu__ico" aria-hidden="true">⏱</span>
+                <span>Histórico de edição</span>
+              </button>
+            </div>
+          </div>
+          <button type="button" class="icon-btn" id="modalDemandaClose" aria-label="Fechar">×</button>
+        </div>
+      </div>
+      <div id="demSelfEditingBanner" class="demanda-alert demanda-alert--self" hidden role="status">
+        <p>Você está editando este projeto — outros usuários veem <strong>seu nome no card</strong> na esteira.</p>
+      </div>
+      <div id="demPresenceBanner" class="demanda-alert demanda-alert--presence" hidden role="status">
+        <p id="demPresenceBannerText"></p>
+      </div>
+      <div id="demConflictBanner" class="demanda-alert demanda-alert--conflict" hidden role="alert">
+        <p>Esta demanda foi alterada por outra pessoa enquanto você editava. Recarregue para ver a versão atual antes de salvar.</p>
+        <button type="button" class="btn btn--ghost btn--sm" id="btnDemConflictReload">Recarregar do servidor</button>
+      </div>
+      <form class="modal__body modal__body--split" id="formDemanda">
+        <input type="hidden" id="demId" />
+
+        <div class="modal__split">
+          <div class="modal__form-col">
+            <fieldset class="fieldset fieldset--segment fieldset--chegada">
+              <legend>Chegada da demanda</legend>
+              <p class="muted small">Nome, tipo, data de chegada e descrição do projeto.</p>
+              <div class="form-grid">
+                <label class="field">
+                  <span class="field-label--required">Nome do projeto</span>
+                  <input id="demTitulo" required maxlength="200" placeholder="Identificação da demanda" />
+                </label>
+                <label class="field">
+                  <span id="labelDemTipo" class="field-label--required">Tipo</span>
+                  <select id="demTipo" required>
+                    <option value="B2C">B2C</option>
+                    <option value="B2B">B2B</option>
+                    <option value="SWAP">SWAP</option>
+                    <option value="Backbone">Backbone</option>
+                    <option value="Licenciamento">Licenciamento</option>
+                  </select>
+                </label>
+                <label class="field is-hidden" id="fieldDemSegmentoB2c" hidden>
+                  <span>Segmento</span>
+                  <select id="demSegmentoB2c">
+                    <option value="">Selecione o segmento…</option>
+                  </select>
+                </label>
+                <label class="field is-hidden" id="fieldDemProdutoB2b" hidden>
+                  <span id="labelDemProduto">Produto</span>
+                  <select id="demProdutoB2b">
+                    <option value="">Selecione o produto…</option>
+                  </select>
+                </label>
+                <label class="field">
+                  <span class="field-label--required">Data de chegada</span>
+                  <input type="date" id="demDataChegada" required />
+                </label>
+              </div>
+              <label class="field field--grow">
+                <span class="field-label--required">Descrição do projeto</span>
+                <textarea id="demDescricao" rows="5" maxlength="8000" required placeholder="Resumo do escopo, contexto e observações iniciais"></textarea>
+              </label>
+            </fieldset>
+
+        <fieldset class="fieldset fieldset--segment fieldset--atribuicao">
+          <legend>Atribuição e origem</legend>
+          <div class="form-grid">
+            <label class="field">
+              <span>Projetista</span>
+              <select id="demResponsavel">
+                <option value="">Não atribuído</option>
+              </select>
+            </label>
+            <label class="field">
+              <span class="field-label--required">Regional</span>
+              <select id="demRegional" required>
+                <option value="">Selecione a regional…</option>
+              </select>
+            </label>
+            <label class="field">
+              <span class="field-label--required">Cidade</span>
+              <select id="demCidade" required disabled>
+                <option value="">Selecione a regional primeiro…</option>
+              </select>
+            </label>
+            <label class="field is-hidden" id="fieldDemSetorSolicitanteB2b" hidden>
+              <span class="field-label--required">Setor do solicitante</span>
+              <select id="demSetorSolicitanteB2b">
+                <option value="Comercial">Comercial</option>
+              </select>
+            </label>
+            <label class="field is-hidden" id="fieldDemSolicitanteB2b" hidden>
+              <span class="field-label--required">Solicitante</span>
+              <select id="demSolicitanteB2b">
+                <option value="">Selecione o solicitante…</option>
+              </select>
+            </label>
+            <label class="field" id="fieldDemSolicitanteText">
+              <span>Solicitante</span>
+              <input id="demSolicitante" maxlength="120" placeholder="Quem solicitou o projeto" />
+            </label>
+          </div>
+        </fieldset>
+
+        <fieldset class="fieldset fieldset--segment fieldset--esteira-form">
+          <legend>Esteira</legend>
+          <p class="muted small">Prazo previsto, dias aberto e atraso na esteira. <strong>Status atual</strong> é um texto livre sobre a situação do projeto; <strong>Status (esteira)</strong> é a fase no fluxo.</p>
+          <div class="form-grid">
+            <div class="field-stack">
+              <label class="field">
+                <span>Data finalização prevista</span>
+                <input type="date" id="demDataFimPrevista" />
+              </label>
+              <label class="field" id="fieldDataFimAtualizada">
+                <span>Data finalização atualizada</span>
+                <input type="date" id="demDataFimAtualizada" />
+                <span class="muted small">Informe quando o prazo previsto não for cumprido (nova previsão, opcional).</span>
+              </label>
+            </div>
+            <label class="field">
+              <span>Data de término</span>
+              <input type="date" id="demDataTermino" title="Preencha ao concluir o projeto" />
+            </label>
+            <label class="field">
+              <span>Status (esteira)</span>
+              <select id="demStatus"></select>
+            </label>
+          </div>
+          <p class="dias-aberto-resumo" id="demDiasAbertoResumo" hidden aria-live="polite"></p>
+          <label class="field field--grow">
+            <span class="field-label--required">Status atual</span>
+            <input type="text" id="demStatusAtual" required maxlength="200" placeholder="Breve descrição de como está o projeto agora (ex.: aguardando vistoria do cliente)" />
+          </label>
+        </fieldset>
+
+        <fieldset class="fieldset fieldset--segment fieldset--conclusao" id="fieldsetValorRealizado" hidden>
+          <legend>Conclusão do projeto</legend>
+          <p class="muted small">Preencha ao marcar como <strong>Conclusão</strong> (Projetos) ou <strong>Documentação / As-Builts</strong> (B2B).</p>
+          <label class="field">
+            <span>Valor realizado do projeto (R$)</span>
+            <input type="text" inputmode="decimal" class="input-br-money" id="demValorProjetoRealizado" placeholder="0,00" autocomplete="off" />
+            <span class="muted small">Custo efetivamente gasto no projeto (valor real, não o estimado no levantamento).</span>
+          </label>
+        </fieldset>
+
+        <fieldset class="fieldset fieldset--segment fieldset--atraso" id="fieldsetMotivosAtraso" hidden>
+          <legend>Motivos do atraso</legend>
+          <p class="muted small" id="motivosAtrasoHint">O prazo previsto já passou. Descreva o que está causando o atraso deste projeto.</p>
+          <div class="motivos-atraso-panel">
+            <div id="motivosAtrasoLista" class="motivos-atraso-lista" aria-live="polite"></div>
+            <button type="button" class="btn btn--ghost btn--sm motivos-atraso-add" id="btnAddMotivoAtraso">+ Adicionar motivo</button>
+            <p class="atraso-dias-resumo" id="demAtrasoDiasResumo" hidden></p>
+          </div>
+        </fieldset>
+
+        <fieldset class="fieldset fieldset--segment fieldset--custo" id="fieldsetCusto">
+          <legend>Levantamento de custo</legend>
+          <label class="field">
+            <span>Este projeto tem levantamento de custo?</span>
+            <select id="demTemLevantamento" required>
+              <option value="nao">Não se aplica</option>
+              <option value="sim">Sim</option>
+            </select>
+          </label>
+          <div id="custoDetalhes" class="custo-detalhes is-hidden">
+          <div class="form-grid form-grid--custo">
+            <label class="field">
+              <span>Valor do projeto (R$)</span>
+              <input type="text" inputmode="decimal" class="input-br-money" id="custoValorProjeto" placeholder="0,00" autocomplete="off" />
+            </label>
+            <label class="field">
+              <span>Valor 5% (R$)</span>
+              <input type="text" class="input-br-money" id="custoValor5" readonly title="5% do valor do projeto (calculado automaticamente)" />
+              <span class="muted small">Calculado automaticamente (5% do valor do projeto).</span>
+            </label>
+            <label class="field">
+              <span>Valor final (R$)</span>
+              <input type="text" class="input-br-money" id="custoValorFinal" readonly title="Valor do projeto + 5%" />
+              <span class="muted small">Soma automática: valor do projeto + 5%.</span>
+            </label>
+          </div>
+
+          <div class="custo-subsec">
+            <label class="field">
+              <span>Este projeto tem portas?</span>
+              <select id="demTemPortas">
+                <option value="nao">Não se aplica</option>
+                <option value="sim">Sim</option>
+              </select>
+            </label>
+            <div id="portasDetalhes" class="custo-detalhes is-hidden">
+              <div class="form-grid form-grid--custo">
+                <label class="field">
+                  <span>Quantidade de casas</span>
+                  <input type="text" inputmode="numeric" class="input-br-int" id="custoQtdCasas" autocomplete="off" />
+                </label>
+                <label class="field">
+                  <span>Qtd. portas existentes</span>
+                  <input type="text" inputmode="numeric" class="input-br-int" id="custoQtdPortasAtual" autocomplete="off" />
+                </label>
+                <label class="field">
+                  <span>Qtd. novas portas</span>
+                  <input type="text" inputmode="numeric" class="input-br-int" id="custoQtdNovasPortas" autocomplete="off" />
+                </label>
+                <label class="field">
+                  <span>Taxa penetração atual</span>
+                  <input type="text" class="input-br-percent" id="custoPenetracaoAtual" readonly title="Portas existentes ÷ quantidade de casas" />
+                  <span class="muted small">Calculada: portas existentes ÷ qtd. casas.</span>
+                </label>
+                <label class="field">
+                  <span>Nova taxa penetração</span>
+                  <input type="text" class="input-br-percent" id="custoNovaPenetracao" readonly title="(Portas existentes + novas portas) ÷ qtd. casas" />
+                  <span class="muted small">Calculada: (portas existentes + novas portas) ÷ qtd. casas.</span>
+                </label>
+                <label class="field">
+                  <span>Valor por porta nova (R$)</span>
+                  <input type="text" class="input-br-money" id="custoValorPorPortaNova" readonly title="Valor final ÷ qtd. novas portas" />
+                  <span class="muted small">Valor final do projeto dividido pela quantidade de novas portas.</span>
+                </label>
+              </div>
+            </div>
+          </div>
+
+          <div class="custo-subsec">
+            <label class="field">
+              <span>Este projeto tem lançamento?</span>
+              <select id="demTemLancamento">
+                <option value="nao">Não se aplica</option>
+                <option value="sim">Sim</option>
+              </select>
+            </label>
+            <div id="lancamentoDetalhes" class="custo-detalhes is-hidden">
+              <p class="muted small">Adicione cada tipo de cabo e a metragem. O total é a soma de todas as metragens.</p>
+              <div id="lancamentoCabosList" class="lancamento-list"></div>
+              <button type="button" class="btn btn--ghost btn--sm" id="btnAddCabo">+ Adicionar cabo</button>
+              <label class="field field--inline-total">
+                <span>Total de metragem (m)</span>
+                <input type="text" class="input-br-int" id="custoTotalMetragem" readonly />
+              </label>
+            </div>
+          </div>
+
+          <div class="custo-subsec custo-subsec--execucao">
+            <label class="field">
+              <span>Execução</span>
+              <select id="custoExecucao" aria-label="Tipo de execução">
+                <option value="Não se aplica">Não se aplica</option>
+                <option value="Regional">Regional</option>
+                <option value="Terceirizada">Terceirizada</option>
+                <option value="Regional + Terceirizada">Regional + Terceirizada</option>
+              </select>
+              <span class="muted small"><strong>Não se aplica</strong>, <strong>Regional</strong>, <strong>Terceirizada</strong> ou <strong>Regional + Terceirizada</strong>.</span>
+            </label>
+          </div>
+          <div id="execucaoCustosDetalhes" class="execucao-custos">
+            <div id="execucaoCustoRegionalWrap" class="custo-subsec execucao-custos__item">
+              <label class="field">
+                <span>Custo da Regional (R$)</span>
+                <input type="text" inputmode="decimal" class="input-br-money" id="custoExecucaoRegional" placeholder="0,00" autocomplete="off" />
+              </label>
+            </div>
+            <div id="execucaoCustoTerceirizadaWrap" class="custo-subsec execucao-custos__item is-hidden">
+              <label class="field">
+                <span>Custo da Terceirizada (R$)</span>
+                <input type="text" inputmode="decimal" class="input-br-money" id="custoExecucaoTerceirizada" placeholder="0,00" autocomplete="off" />
+              </label>
+            </div>
+          </div>
+          </div>
+        </fieldset>
+
+        <fieldset class="fieldset fieldset--segment fieldset--pdf-custo">
+          <legend>PDF do levantamento de custo</legend>
+          <p class="muted small">Envie o PDF do Levantamento de Custo</p>
+          <input type="file" id="demPdfInput" accept="application/pdf,.pdf" />
+          <div id="demPdfPreview" class="pdf-custo-preview" hidden></div>
+        </fieldset>
+
+        <fieldset class="fieldset fieldset--segment fieldset--referencias">
+          <legend>Referências externas</legend>
+          <p class="muted small">Identificadores do projeto em outros sistemas.</p>
+          <div class="form-grid">
+            <label class="field">
+              <span>Chamado Ocomon</span>
+              <input id="demChamadoOcomon" maxlength="80" placeholder="Número do chamado Ocomon" autocomplete="off" />
+            </label>
+            <label class="field">
+              <span>Nº O.S. Aniel</span>
+              <input id="demOsAniel" maxlength="80" placeholder="Número da O.S. do Aniel" autocomplete="off" />
+            </label>
+          </div>
+        </fieldset>
+
+        <fieldset class="fieldset fieldset--segment fieldset--timeline">
+          <legend>Tempo na esteira</legend>
+          <p class="muted small">Ajuste <strong>início</strong> e <strong>fim</strong> de cada fase (data e hora). Na fase atual em andamento, deixe o fim em branco. Use <strong>↑</strong> e <strong>↓</strong> para alterar a ordem das fases. <strong>Excluir</strong> pede confirmação antes de remover (mínimo uma fase). Salve a demanda para gravar.</p>
+          <div class="timeline-table-wrap">
+            <table class="timeline-table" id="demTimelineTable">
+              <thead>
+                <tr><th>Fase</th><th>Setor</th><th>Início</th><th>Fim</th><th>Duração</th><th>Atualização</th><th></th></tr>
+              </thead>
+              <tbody></tbody>
+            </table>
+          </div>
+        </fieldset>
+          </div>
+
+          <aside class="comments-panel" aria-label="Comentários do projeto">
+            <button type="button" class="comments-panel__toggle" id="commentsPanelToggle" aria-expanded="true" aria-controls="commentsPanelBody">
+              <span>Comentários</span>
+              <span class="comments-panel__chevron" aria-hidden="true"></span>
+            </button>
+            <div class="comments-panel__body" id="commentsPanelBody">
+              <div class="comments-compose">
+                <textarea id="demComentarioNovo" rows="3" maxlength="4000" placeholder="Escreva um comentário… (Ctrl+Enter para enviar)" aria-label="Novo comentário"></textarea>
+                <button type="button" class="comments-compose__send" id="btnAddComentario" title="Enviar comentário" aria-label="Enviar comentário">&#8593;</button>
+              </div>
+              <div class="comments-feed" id="demComentariosList" role="feed"></div>
+            </div>
+          </aside>
+        </div>
+      </form>
+      <div class="modal__foot">
+        <button type="button" class="btn btn--ghost" id="btnFecharDemanda">Fechar</button>
+        <button type="button" class="btn btn--danger" id="btnExcluirDemanda">Excluir</button>
+        <button type="button" class="btn btn--primary" id="btnSalvarDemanda">Salvar</button>
+      </div>
+    </div>
+  </dialog>
+
+  <dialog class="modal modal--narrow" id="modalHistoricoEdicao" aria-labelledby="modalHistoricoEdicaoTitulo">
+    <div class="modal__inner">
+      <div class="modal__head">
+        <h2 id="modalHistoricoEdicaoTitulo">Histórico de edição</h2>
+        <button type="button" class="icon-btn" id="modalHistoricoEdicaoClose" aria-label="Fechar">×</button>
+      </div>
+      <div class="modal__body">
+        <p class="muted small">Registro completo desde a criação da demanda — cada salvamento vincula as alterações ao usuário responsável.</p>
+        <div class="hist-edicao-list" id="histEdicaoList" aria-live="polite"></div>
+      </div>
+      <div class="modal__foot">
+        <button type="button" class="btn btn--ghost" id="btnFecharHistoricoEdicao">Fechar</button>
+      </div>
+    </div>
+  </dialog>
+
+  <dialog class="modal modal--wide" id="modalImportCsv">
+    <div class="modal__inner">
+      <div class="modal__head">
+        <h2>Importar CSV — relatório completo</h2>
+        <button type="button" class="icon-btn" id="modalImportCsvClose" aria-label="Fechar">×</button>
+      </div>
+      <div class="modal__body">
+        <p class="muted small" id="importCsvHint">Compatível com o <strong>relatório completo exportado</strong> e planilhas <strong>Follow-up</strong> (Norte_MOC, CO Sul SP). Correspondência por <strong>ID</strong> (se presente) ou título (Ação). Colunas estendidas: esteira, status do sistema, B2B/B2C, valores, comentários, histórico, Ocomon/Aniel.</p>
+        <p id="importCsvSummary" class="import-csv-summary"></p>
+        <label class="field">
+          <span>Modo de importação</span>
+          <select id="importCsvMode">
+            <option value="skip">Adicionar só projetos novos (mesmo ID ou título = ignorar)</option>
+            <option value="update">Atualizar projetos existentes (mesmo ID ou título)</option>
+            <option value="all">Adicionar todos como novos (permite títulos repetidos)</option>
+          </select>
+        </label>
+        <div class="import-csv-preview-wrap">
+          <table class="dash-table import-csv-table" id="importCsvPreviewTable">
+            <thead>
+              <tr>
+                <th>Ação</th>
+                <th>Regional</th>
+                <th>Status planilha</th>
+                <th>Situação / comentário</th>
+                <th>Linha</th>
+                <th>Esteira (sistema)</th>
+                <th>Projetista</th>
+                <th>Importação</th>
+              </tr>
+            </thead>
+            <tbody id="importCsvPreviewBody"></tbody>
+          </table>
+        </div>
+        <p class="muted small" id="importCsvPreviewMore" hidden></p>
+      </div>
+      <div class="modal__foot">
+        <button type="button" class="btn btn--ghost" id="btnImportCsvCancel">Cancelar</button>
+        <button type="button" class="btn btn--primary" id="btnImportCsvConfirm">Importar</button>
+      </div>
+    </div>
+  </dialog>
+
+  <dialog class="modal modal--sm" id="modalDiaria">
+    <div class="modal__inner">
+      <div class="modal__head">
+        <h2>Demanda diária</h2>
+        <button type="button" class="icon-btn" id="modalDiariaClose" aria-label="Fechar">×</button>
+      </div>
+      <div class="modal__body">
+        <input type="hidden" id="diariaId" />
+        <label class="field">
+          <span>Nome da demanda</span>
+          <input id="diariaTitulo" required maxlength="200" placeholder="Identificação curta da demanda" />
+        </label>
+        <label class="field">
+          <span>Descrição</span>
+          <textarea id="diariaDesc" rows="5" maxlength="4000" required placeholder="Detalhes do que precisa ser feito"></textarea>
+        </label>
+        <label class="field">
+          <span>Responsável</span>
+          <select id="diariaResp" required></select>
+        </label>
+      </div>
+      <div class="modal__foot">
+        <button type="button" class="btn btn--ghost" id="btnFecharDiaria">Cancelar</button>
+        <button type="button" class="btn btn--danger" id="btnExcluirDiaria">Excluir</button>
+        <button type="button" class="btn btn--primary" id="btnSalvarDiaria">Salvar</button>
+      </div>
+    </div>
+  </dialog>
+
+  <dialog class="modal modal--sm confirm-dialog" id="modalConfirm" aria-labelledby="confirmDialogTitle">
+    <div class="modal__inner confirm-dialog__inner">
+      <div class="confirm-dialog__head">
+        <div class="confirm-dialog__icon" id="confirmDialogIcon" aria-hidden="true">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
+            <line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>
+          </svg>
+        </div>
+        <div class="confirm-dialog__titles">
+          <h2 id="confirmDialogTitle">Confirmar</h2>
+          <p class="confirm-dialog__message" id="confirmDialogMessage"></p>
+        </div>
+      </div>
+      <dl class="confirm-dialog__details" id="confirmDialogDetails" hidden></dl>
+      <p class="confirm-dialog__hint muted small" id="confirmDialogHint" hidden></p>
+      <div class="confirm-dialog__foot">
+        <button type="button" class="btn btn--ghost" id="confirmDialogCancel">Cancelar</button>
+        <button type="button" class="btn btn--danger" id="confirmDialogOk">Confirmar</button>
+      </div>
+    </div>
+  </dialog>
+
+  <div class="app-loader" id="appLoader" role="status" aria-live="polite">
+    <div class="app-loader__box">
+      <span class="app-loader__spin" aria-hidden="true"></span>
+      <p>Carregando dados…</p>
+    </div>
+  </div>
+
+  <div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
+
+  <script src="firebase-config.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
+  <script src="firebase-auth.js"></script>
+  <script src="firebase-persist.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+  <script src="csv-import.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+  <script>
+    if (window.pdfjsLib) {
+      pdfjsLib.GlobalWorkerOptions.workerSrc =
+        "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
+    }
+  </script>
+  <script src="pdf-custo-import.js"></script>
+  <script src="login-init.js"></script>
+  <script src="number-format-br.js"></script>
+  <script src="user-home.js"></script>
+  <script src="app-boot.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
+</html>
