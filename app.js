@@ -3038,6 +3038,89 @@ function applyUserHomeOnLogin(user) {
   switchMainTab("esteira");
 }
 
+/** Cards com detalhes abertos — mantém o estado entre re-renderizações do board. */
+const cardsExpandidos = new Set();
+
+function cardIniciais(nome) {
+  const partes = String(nome || "").trim().split(/\s+/).filter(Boolean);
+  if (!partes.length) return "?";
+  const a = partes[0].charAt(0);
+  const b = partes.length > 1 ? partes[partes.length - 1].charAt(0) : partes[0].charAt(1);
+  return (a + (b || "")).toLocaleUpperCase("pt-BR");
+}
+
+/** Matiz estável por nome (avatar do projetista). */
+function cardAvatarHue(nome) {
+  let h = 0;
+  for (const ch of String(nome || "")) h = (h * 31 + ch.charCodeAt(0)) % 360;
+  return h;
+}
+
+/** Próxima etapa da esteira (null se última, extra ou fila sem projetista). */
+function proximaEtapaEsteira(dm) {
+  if (!normalizeResponsavel(dm.responsavel)) return null;
+  const ordem = getEsteiraConfig(dm.linhaEsteira).statusOrder.map(([k]) => k);
+  const idx = ordem.indexOf(dm.status);
+  if (idx < 0 || idx >= ordem.length - 1) return null;
+  return ordem[idx + 1];
+}
+
+/** Barra de prazo: progresso entre chegada e previsão de entrega. */
+function cardPrazoHtml(dm) {
+  const prev = dm.dataFimPrevista;
+  if (!prev) return "";
+  const inicio = demandaInicioContagemAberto(dm);
+  const encerrada = isDemandaEncerrada(dm);
+  const hoje = todayISODate();
+  const ref = encerrada ? demandaDataTermino(dm) || hoje : hoje;
+  const total = inicio ? diasEntreDatasISO(inicio, prev) : 0;
+  const decorrido = inicio ? diasEntreDatasISO(inicio, ref) : 0;
+  const atrasado = isAtraso(dm);
+  let pct = total > 0 ? Math.round((decorrido / total) * 100) : atrasado ? 100 : 0;
+  pct = Math.max(4, Math.min(100, pct));
+  const restante = diasEntreDatasISO(hoje, prev);
+  let nivel = "ok";
+  let texto;
+  if (encerrada) {
+    nivel = atrasado ? "late" : "done";
+    texto = atrasado ? `Entregue com ${formatDiasAtrasoLabel(demandaDiasAtraso(dm))} de atraso` : "Entregue no prazo";
+  } else if (atrasado) {
+    nivel = "late";
+    texto = `Atrasado ${formatDiasAtrasoLabel(demandaDiasAtraso(dm))}`;
+  } else if (restante === 0) {
+    nivel = "warn";
+    texto = "Vence hoje";
+  } else {
+    if (restante <= 3) nivel = "warn";
+    texto = `Vence em ${formatDiasAtrasoLabel(restante)}`;
+  }
+  return (
+    `<div class="card__prazo card__prazo--${nivel}" title="Prazo previsto: ${escapeHtml(formatDataISO(prev))}">` +
+    `<div class="card__prazo-bar"><span style="width:${pct}%"></span></div>` +
+    `<span class="card__prazo-txt">${escapeHtml(texto)}</span>` +
+    `</div>`
+  );
+}
+
+function cardDetalhesHtml(dm, proxima) {
+  const linhas = [
+    ["Solicitante", dm.solicitante],
+    ["Chegada", dm.dataChegada ? formatDataISO(dm.dataChegada) : ""],
+    ["Prazo previsto", dm.dataFimPrevista ? formatDataISO(dm.dataFimPrevista) : ""],
+    ["Chamado Ocomon", dm.chamadoOcomon],
+    ["OS Aniel", dm.osAniel],
+    ["Próxima etapa", proxima ? labelStatus(proxima, dm.linhaEsteira) : ""],
+  ].filter(([, v]) => v);
+  const dl = linhas
+    .map(([k, v]) => `<div><dt>${escapeHtml(k)}</dt><dd>${escapeHtml(v)}</dd></div>`)
+    .join("");
+  const desc = dm.descricao.trim()
+    ? `<p class="card__desc">${escapeHtml(dm.descricao.trim())}</p>`
+    : "";
+  if (!dl && !desc) return `<div class="card__details"><p class="card__desc muted">Sem detalhes adicionais.</p></div>`;
+  return `<div class="card__details">${dl ? `<dl>${dl}</dl>` : ""}${desc}</div>`;
+}
+
 function renderCard(d, { canMoveUp = false, canMoveDown = false } = {}) {
   const el = document.createElement("article");
   const dmCard = migrateDemanda(d);
@@ -3051,10 +3134,18 @@ function renderCard(d, { canMoveUp = false, canMoveDown = false } = {}) {
   if (normalizeEditingBy(d.editingBy)) {
     el.classList.add("card--being-edited");
   }
+  const expandido = cardsExpandidos.has(d.id);
+  if (expandido) el.classList.add("card--expanded");
   el.draggable = true;
+  el.tabIndex = 0;
   el.dataset.id = d.id;
+  el.setAttribute(
+    "aria-label",
+    `${dmCard.titulo}. Enter abre o projeto; Alt + setas mudam a prioridade.`,
+  );
+  const isAcao = (target) => !!target.closest(".card__actions, .card__foot-actions, .card__details");
   el.addEventListener("dragstart", (e) => {
-    if (e.target.closest(".card__prio")) {
+    if (isAcao(e.target)) {
       e.preventDefault();
       return;
     }
@@ -3062,31 +3153,24 @@ function renderCard(d, { canMoveUp = false, canMoveDown = false } = {}) {
     e.dataTransfer.effectAllowed = "move";
   });
   el.addEventListener("click", (e) => {
-    if (e.target.closest(".card__prio")) return;
+    if (e.target.closest("button")) return;
+    if (window.getSelection?.().toString()) return;
     openDemandaModal(d.id);
   });
+  el.addEventListener("keydown", (e) => {
+    if (e.target !== el) return;
+    if (e.key === "Enter" || e.key === " ") {
+      e.preventDefault();
+      openDemandaModal(d.id);
+    } else if (e.altKey && (e.key === "ArrowUp" || e.key === "ArrowDown")) {
+      e.preventDefault();
+      const dir = e.key === "ArrowUp" ? -1 : 1;
+      if ((dir < 0 && !canMoveUp) || (dir > 0 && !canMoveDown)) return;
+      moveDemandaOrdemEsteira(d.id, dir);
+      requestAnimationFrame(() => document.querySelector(`.card[data-id="${CSS.escape(d.id)}"]`)?.focus());
+    }
+  });
 
-  const atr = isAtraso(d) ? `<span class="badge badge--atr">Atraso</span>` : "";
-  const st = d.status || "novo";
-  const statusBadge = `<span class="badge ${statusBadgeClass(st)}">${escapeHtml(labelStatus(st, dmCard.linhaEsteira))}</span>`;
-  const statusTxt = (d.statusAtual || "").trim();
-  const statusTxtHtml = statusTxt
-    ? `<p class="card__status-atual">${escapeHtml(statusTxt)}</p>`
-    : "";
-  const diasAtraso = demandaDiasAtraso(d);
-  const atrasoHtml =
-    isAtraso(d) && diasAtraso > 0
-      ? `<div class="card__atraso"><p class="card__atraso-dias"><strong>Atraso:</strong> ${escapeHtml(formatDiasAtrasoLabel(diasAtraso))}</p></div>`
-      : "";
-  const diasAberto = demandaDiasAberto(d);
-  const diasAbertoHtml =
-    demandaInicioContagemAberto(dmCard)
-      ? `<p class="card__dias-aberto" title="${isStatusConcluidoDemanda(dmCard) ? "Dias aberto até a conclusão" : "Dias desde a chegada — atualiza diariamente"}"><strong>Aberto:</strong> ${escapeHtml(formatDiasAbertoLabel(diasAberto))}</p>`
-      : "";
-  const editingHtml = cardEditingByHtml(d);
-  const respAtrib = normalizeResponsavel(d.responsavel)
-    ? `<span>${escapeHtml(d.responsavel)}</span>`
-    : `<span class="badge badge--pend">${escapeHtml(labelProjetista(d.responsavel))}</span>`;
   const tipo = normalizeTipo(d.tipo);
   const produtoHtml =
     tipo === "B2B" && dmCard.produtoB2b
@@ -3096,30 +3180,78 @@ function renderCard(d, { canMoveUp = false, canMoveDown = false } = {}) {
     tipo === "B2C" && dmCard.segmentoB2c
       ? `<span class="badge badge--segmento-b2c">${escapeHtml(dmCard.segmentoB2c)}</span>`
       : "";
-  const prioHtml =
-    `<div class="card__prio" title="Prioridade nesta coluna (topo = mais importante)">` +
-    `<button type="button" class="card-prio-btn" data-dir="-1" aria-label="Subir (mais prioridade)"${canMoveUp ? "" : " disabled"}>▲</button>` +
-    `<button type="button" class="card-prio-btn" data-dir="1" aria-label="Descer"${canMoveDown ? "" : " disabled"}>▼</button>` +
-    `</div>`;
+  const statusExtraHtml =
+    d.status === "pausado" || d.status === "reprovado"
+      ? `<span class="badge ${statusBadgeClass(d.status)}">${escapeHtml(labelStatus(d.status, dmCard.linhaEsteira))}</span>`
+      : "";
+  const statusTxt = (d.statusAtual || "").trim();
+  const statusTxtHtml = statusTxt
+    ? `<p class="card__status-atual" title="${escapeHtml(statusTxt)}">${escapeHtml(statusTxt)}</p>`
+    : "";
+  const editingHtml = cardEditingByHtml(d);
+
+  const resp = normalizeResponsavel(d.responsavel);
+  const respHtml = resp
+    ? `<span class="card__resp" title="Projetista: ${escapeHtml(resp)}"><span class="card__avatar" style="--avatar-h:${cardAvatarHue(resp)}">${escapeHtml(cardIniciais(resp))}</span>${escapeHtml(resp)}</span>`
+    : `<span class="badge badge--pend">${escapeHtml(labelProjetista(d.responsavel))}</span>`;
+  const cidadeHtml = dmCard.cidade
+    ? `<span class="card__cidade" title="${escapeHtml(dmCard.cidade)}">📍 ${escapeHtml(dmCard.cidade)}</span>`
+    : "";
+
+  const diasAberto = demandaDiasAberto(d);
+  const stats = [];
+  if (demandaInicioContagemAberto(dmCard)) {
+    const tip = isStatusConcluidoDemanda(dmCard) ? "Dias aberto até a conclusão" : "Dias desde a chegada";
+    stats.push(`<span class="card__stat" title="${tip}">⏱ ${diasAberto}d</span>`);
+  }
+  if (dmCard.comentarios.length) {
+    stats.push(`<span class="card__stat" title="${dmCard.comentarios.length} comentário(s)">💬 ${dmCard.comentarios.length}</span>`);
+  }
+  if (dmCard.imagens.length) {
+    stats.push(`<span class="card__stat" title="${dmCard.imagens.length} imagem(ns)">🖼 ${dmCard.imagens.length}</span>`);
+  }
+  if (dmCard.pdfLevantamento) {
+    stats.push(`<span class="card__stat" title="PDF de levantamento anexado">📄</span>`);
+  }
+
+  const proxima = proximaEtapaEsteira(dmCard);
+  const avancarHtml = proxima
+    ? `<button type="button" class="card__btn card__btn--advance" data-action="avancar" title="Mover para: ${escapeHtml(labelStatus(proxima, dmCard.linhaEsteira))}">Avançar ▸</button>`
+    : "";
+
   el.innerHTML = `
-    ${prioHtml}
+    <div class="card__top">
+      <div class="card__tags">
+        <span class="badge ${tipoBadgeClass(tipo)}">${escapeHtml(tipo)}</span>
+        ${produtoHtml}
+        ${segmentoHtml}
+        ${statusExtraHtml}
+      </div>
+      <div class="card__actions" title="Prioridade nesta coluna (topo = mais importante)">
+        <button type="button" class="card-prio-btn" data-dir="-1" aria-label="Subir (mais prioridade)"${canMoveUp ? "" : " disabled"}>▲</button>
+        <button type="button" class="card-prio-btn" data-dir="1" aria-label="Descer"${canMoveDown ? "" : " disabled"}>▼</button>
+      </div>
+    </div>
     <h3 class="card__title"></h3>
     ${editingHtml}
     ${statusTxtHtml}
-    ${diasAbertoHtml}
-    ${atrasoHtml}
-    <div class="card__meta">
-      <span class="badge ${tipoBadgeClass(tipo)}">${escapeHtml(tipo)}</span>
-      ${produtoHtml}
-      ${segmentoHtml}
-      ${statusBadge}
-      ${respAtrib}
-      ${d.cidade ? `<span>${escapeHtml(d.cidade)}</span>` : ""}
-      ${d.solicitante ? `<span>${escapeHtml(d.solicitante)}</span>` : ""}
-      ${atr}
+    ${cardPrazoHtml(dmCard)}
+    <div class="card__people">
+      ${respHtml}
+      ${cidadeHtml}
+    </div>
+    ${expandido ? cardDetalhesHtml(dmCard, proxima) : ""}
+    <div class="card__foot">
+      <div class="card__stats">${stats.join("")}</div>
+      <div class="card__foot-actions">
+        ${avancarHtml}
+        <button type="button" class="card__btn card__toggle" data-action="toggle" aria-expanded="${expandido}" title="${expandido ? "Ocultar detalhes" : "Ver detalhes"}">${expandido ? "▴" : "▾"}</button>
+      </div>
     </div>
   `;
-  el.querySelector(".card__title").textContent = d.titulo;
+  const titleEl = el.querySelector(".card__title");
+  titleEl.textContent = dmCard.titulo;
+  titleEl.title = dmCard.titulo;
   el.querySelectorAll(".card-prio-btn").forEach((btn) => {
     btn.addEventListener("click", (e) => {
       e.stopPropagation();
@@ -3128,6 +3260,32 @@ function renderCard(d, { canMoveUp = false, canMoveDown = false } = {}) {
       moveDemandaOrdemEsteira(d.id, Number(btn.dataset.dir));
     });
     btn.addEventListener("mousedown", (e) => e.stopPropagation());
+  });
+  el.querySelector(".card__toggle").addEventListener("click", (e) => {
+    e.stopPropagation();
+    if (cardsExpandidos.has(d.id)) cardsExpandidos.delete(d.id);
+    else cardsExpandidos.add(d.id);
+    const novo = renderCard(d, { canMoveUp, canMoveDown });
+    el.replaceWith(novo);
+    novo.querySelector(".card__toggle")?.focus();
+  });
+  el.querySelector(".card__btn--advance")?.addEventListener("click", async (e) => {
+    e.stopPropagation();
+    const destino = labelStatus(proxima, dmCard.linhaEsteira);
+    const ok = await confirmDialog({
+      title: "Avançar etapa",
+      message: `Mover «${dmCard.titulo}» para a próxima etapa?`,
+      details: [
+        { label: "De", value: labelStatus(dmCard.status, dmCard.linhaEsteira) },
+        { label: "Para", value: destino },
+        { label: "Projetista", value: dmCard.responsavel },
+      ],
+      confirmText: `Mover para ${destino}`,
+      variant: "default",
+    });
+    if (!ok) return;
+    const dem = state.demandas.find((x) => x.id === d.id);
+    handleDemandaDrop(dem, proxima, BOARD_ATRIBUIDOS);
   });
   return el;
 }
